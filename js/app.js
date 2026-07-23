@@ -1,30 +1,25 @@
 /**
- * app.js
- * ----------------------------------------------------------------------
- * Contrôleur principal de l'application, construit avec Alpine.js.
- * Regroupe la navigation entre écrans, la gestion des profils, la
- * recherche Scryfall, le compteur de vie et le flux de fin de partie.
- * ----------------------------------------------------------------------
+ * app.js — Contrôleur principal Alpine.js
  */
-
 document.addEventListener('alpine:init', () => {
   Alpine.data('appState', () => ({
-    // -----------------------------------------------------------------
-    // État global
-    // -----------------------------------------------------------------
-    view: 'profiles', // profiles | new-profile | dashboard | life-setup | life-counter | game-summary | settings
+
+    // ── État global ────────────────────────────────────────────────
+    view: 'profiles',
     profiles: [],
     activeProfileId: null,
     darkMode: true,
     toast: null,
-    toastTimeout: null,
+    _toastTimer: null,
 
-    // Création / édition de profil
-    draftProfile: { name: '', commander: null },
+    // Formulaire nouveau profil
+    draftName: '',
+    draftCommander: null,
     commanderQuery: '',
     commanderResults: [],
     searching: false,
     searchError: '',
+    _editingExisting: false,
 
     // Compteur de vie
     numPlayers: 4,
@@ -34,254 +29,237 @@ document.addEventListener('alpine:init', () => {
 
     // Fin de partie
     gameForm: { placement: 1, commanderKills: 0, eliminationsTier: 0, commanderDamageKills: 0 },
-    lastGameResult: null, // { breakdown, total, finalXp, boostsApplied }
+    lastGameResult: null,
 
     // Level up
-    levelUpQueue: [],       // niveaux en attente d'un choix de bonus
-    currentLevelUpChoices: null, // [bonus, bonus] affiché dans la modale
+    levelUpQueue: [],
+    currentLevelUp: null, // { level, options: [bonus, bonus] }
 
-    // Import
+    // Settings
     importError: '',
 
-    // Flag interne : le formulaire "new-profile" sert-il à changer le
-    // Commander d'un profil existant plutôt qu'à en créer un nouveau ?
-    _editingExisting: false,
-
-    // -----------------------------------------------------------------
-    // Initialisation
-    // -----------------------------------------------------------------
+    // ── Init ───────────────────────────────────────────────────────
     async init() {
       this.profiles = await DB.getProfiles();
       this.activeProfileId = await DB.getActiveProfileId();
-      const settings = await DB.getSettings();
-      this.darkMode = settings.darkMode !== false;
-      this.applyDarkMode();
+      const s = await DB.getSettings();
+      this.darkMode = s.darkMode !== false;
+      this._applyDark();
 
-      if (this.profiles.length === 0) {
-        this.view = 'profiles';
+      // Restaurer activeProfileId valide
+      if (this.activeProfileId && !this.profiles.find(p => p.id === this.activeProfileId)) {
+        this.activeProfileId = this.profiles[0]?.id || null;
+        await DB.setActiveProfileId(this.activeProfileId || '');
       }
 
-      // Enregistrement du service worker pour le mode PWA hors-ligne
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW non enregistré', err));
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
       }
     },
 
-    // -----------------------------------------------------------------
-    // Utilitaires généraux
-    // -----------------------------------------------------------------
-    get activeProfile() {
+    // ── Helpers ────────────────────────────────────────────────────
+    get ap() { // activeProfile raccourci
       return this.profiles.find(p => p.id === this.activeProfileId) || null;
     },
 
-    goTo(view) {
-      this.view = view;
+    go(v) { this.view = v; },
+
+    toast_(msg) {
+      clearTimeout(this._toastTimer);
+      this.toast = msg;
+      this._toastTimer = setTimeout(() => { this.toast = null; }, 2800);
     },
 
-    showToast(message) {
-      clearTimeout(this.toastTimeout);
-      this.toast = message;
-      this.toastTimeout = setTimeout(() => (this.toast = null), 2600);
-    },
+    async save() { await DB.saveProfiles(this.profiles); },
 
-    async persist() {
-      await DB.saveProfiles(this.profiles);
-    },
-
-    applyDarkMode() {
+    _applyDark() {
       document.documentElement.classList.toggle('dark', this.darkMode);
     },
 
-    async toggleDarkMode() {
+    async toggleDark() {
       this.darkMode = !this.darkMode;
-      this.applyDarkMode();
+      this._applyDark();
       await DB.saveSettings({ darkMode: this.darkMode });
     },
 
-    tierLabel(level) {
-      const tier = getTierForLevel(level);
-      return { 1: 'Recrue', 2: 'Vétéran', 3: 'Champion', 4: 'Légende' }[tier];
+    tierLabel(lvl) {
+      return ['','Recrue','Recrue','Recrue','Recrue','Recrue',
+              'Vétéran','Vétéran','Vétéran','Vétéran','Vétéran',
+              'Champion','Champion','Champion','Champion','Champion',
+              'Légende','Légende','Légende','Légende','Légende'][lvl] || 'Recrue';
     },
 
-    tierColorClass(level) {
-      const tier = getTierForLevel(level);
-      return { 1: 'tier-1', 2: 'tier-2', 3: 'tier-3', 4: 'tier-4' }[tier];
+    tierClass(lvl) {
+      if (lvl <= 5)  return 'tier-1';
+      if (lvl <= 10) return 'tier-2';
+      if (lvl <= 15) return 'tier-3';
+      return 'tier-4';
     },
 
-    xpProgress(profile) {
-      return getXpProgress(profile);
+    xpBar(profile) { return getXpProgress(profile); },
+
+    formatDate(iso) {
+      return new Date(iso).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
     },
 
-    // -----------------------------------------------------------------
-    // Gestion des profils
-    // -----------------------------------------------------------------
-    openNewProfile() {
-      this.draftProfile = { name: '', commander: null };
+    placeLabel(p) {
+      return {1:'🥇 1ère place',2:'🥈 2ème',3:'🥉 3ème'}[p] || '4ème ou moins';
+    },
+
+    previewXp() {
+      try { return calculateGameXp(this.gameForm).total; } catch(e) { return 0; }
+    },
+
+    navTo(v) {
+      // Navigation basse : bloque si pas de profil actif pour dashboard/partie
+      if ((v === 'dashboard' || v === 'life-setup') && !this.ap) {
+        this.toast_('Sélectionne un profil d\'abord.');
+        this.go('profiles');
+        return;
+      }
+      this.go(v);
+    },
+
+    // ── Profils ────────────────────────────────────────────────────
+    openNew() {
+      this.draftName = '';
+      this.draftCommander = null;
       this.commanderQuery = '';
       this.commanderResults = [];
       this.searchError = '';
-      this.view = 'new-profile';
+      this._editingExisting = false;
+      this.go('new-profile');
     },
 
     selectProfile(id) {
       this.activeProfileId = id;
       DB.setActiveProfileId(id);
-      this.view = 'dashboard';
+      this.go('dashboard');
     },
 
     async deleteProfile(id) {
-      if (!confirm('Supprimer définitivement ce profil et toute sa progression ?')) return;
+      if (!confirm('Supprimer ce profil définitivement ?')) return;
       this.profiles = this.profiles.filter(p => p.id !== id);
-      await this.persist();
-      if (this.activeProfileId === id) this.activeProfileId = null;
-      this.showToast('Profil supprimé.');
-      this.view = 'profiles';
+      await this.save();
+      if (this.activeProfileId === id) {
+        this.activeProfileId = this.profiles[0]?.id || null;
+        await DB.setActiveProfileId(this.activeProfileId || '');
+      }
+      this.toast_('Profil supprimé.');
+      this.go('profiles');
     },
 
-    async searchCommander() {
+    // ── Scryfall ───────────────────────────────────────────────────
+    async doSearch() {
       this.searchError = '';
-      if (this.commanderQuery.trim().length < 2) {
-        this.commanderResults = [];
-        return;
-      }
+      const q = this.commanderQuery.trim();
+      if (q.length < 2) { this.commanderResults = []; return; }
       this.searching = true;
       try {
-        this.commanderResults = await Scryfall.searchCommanders(this.commanderQuery);
-        if (this.commanderResults.length === 0) {
-          this.searchError = 'Aucun Commander trouvé pour cette recherche.';
-        }
+        this.commanderResults = await Scryfall.searchCommanders(q);
+        if (this.commanderResults.length === 0)
+          this.searchError = 'Aucun Commander trouvé. Essaie un autre nom.';
       } catch (e) {
-        this.searchError = 'Recherche impossible (connexion à Scryfall indisponible).';
+        this.searchError = 'Connexion à Scryfall impossible. Vérifie ta connexion.';
       } finally {
         this.searching = false;
       }
     },
 
-    pickCommander(card) {
-      this.draftProfile.commander = card;
-      this.commanderResults = [];
+    pickCard(card) {
+      this.draftCommander = card;
       this.commanderQuery = card.name;
-    },
-
-    async saveNewProfile() {
-      if (!this.draftProfile.name.trim()) {
-        this.showToast('Donne un nom à ton profil.');
-        return;
-      }
-      if (!this.draftProfile.commander) {
-        this.showToast('Choisis un Commander pour ce profil.');
-        return;
-      }
-      const profile = DB.createEmptyProfile(this.draftProfile.name.trim());
-      profile.commander = this.draftProfile.commander;
-      this.profiles.push(profile);
-      await this.persist();
-      this.selectProfile(profile.id);
-      this.showToast(`${profile.name} est prêt à combattre !`);
-    },
-
-    async changeCommander() {
-      this.draftProfile = { name: this.activeProfile.name, commander: this.activeProfile.commander };
-      this.commanderQuery = this.activeProfile.commander?.name || '';
       this.commanderResults = [];
-      this._editingExisting = true;
-      this.view = 'new-profile';
     },
 
-    async saveCommanderChange() {
+    async saveProfile() {
+      if (!this._editingExisting && !this.draftName.trim()) {
+        this.toast_('Entre un nom de joueur.'); return;
+      }
+      if (!this.draftCommander) {
+        this.toast_('Choisis un Commander.'); return;
+      }
       if (this._editingExisting) {
-        const p = this.activeProfile;
-        p.commander = this.draftProfile.commander;
-        await this.persist();
+        this.ap.commander = this.draftCommander;
+        await this.save();
         this._editingExisting = false;
-        this.view = 'dashboard';
-        this.showToast('Commander mis à jour.');
+        this.toast_('Commander mis à jour.');
+        this.go('dashboard');
       } else {
-        await this.saveNewProfile();
+        const p = DB.createEmptyProfile(this.draftName.trim());
+        p.commander = this.draftCommander;
+        this.profiles.push(p);
+        await this.save();
+        this.selectProfile(p.id);
+        this.toast_(`${p.name} est prêt !`);
       }
     },
 
-    // -----------------------------------------------------------------
-    // Compteur de vie
-    // -----------------------------------------------------------------
-    setupLifeCounter(count) {
-      this.numPlayers = count;
-      this.players = Array.from({ length: count }, (_, i) => ({
-        name: i === 0 && this.activeProfile ? this.activeProfile.name : `Joueur ${i + 1}`,
+    openChangeCommander() {
+      if (!this.ap) return;
+      this.draftCommander = this.ap.commander;
+      this.commanderQuery = this.ap.commander?.name || '';
+      this.commanderResults = [];
+      this.searchError = '';
+      this._editingExisting = true;
+      this.go('new-profile');
+    },
+
+    // ── Compteur de vie ────────────────────────────────────────────
+    setupLife(n) {
+      this.numPlayers = n;
+      this.players = Array.from({ length: n }, (_, i) => ({
+        name: i === 0 && this.ap ? this.ap.name : `Joueur ${i + 1}`,
         life: this.startingLife,
-        commanderDamage: Array(count).fill(0),
+        cmdDmg: Array(n).fill(0),
         poison: 0,
+        showDetails: false,
       }));
       this.lifeHistory = [];
-      this.view = 'life-counter';
+      this.go('life-counter');
     },
 
-    _snapshotLife() {
+    snap() {
       this.lifeHistory.push(JSON.parse(JSON.stringify(this.players)));
-      if (this.lifeHistory.length > 50) this.lifeHistory.shift();
+      if (this.lifeHistory.length > 60) this.lifeHistory.shift();
     },
 
-    adjustLife(index, delta) {
-      this._snapshotLife();
-      this.players[index].life += delta;
+    adj(i, d) { this.snap(); this.players[i].life = Math.max(-99, this.players[i].life + d); },
+    adjPoison(i, d) { this.snap(); this.players[i].poison = Math.max(0, this.players[i].poison + d); },
+    adjCmd(target, from, d) {
+      this.snap();
+      this.players[target].cmdDmg[from] = Math.max(0, this.players[target].cmdDmg[from] + d);
+      this.players[target].life = Math.max(-99, this.players[target].life - d);
     },
+    undo() { if (this.lifeHistory.length) this.players = this.lifeHistory.pop(); },
 
-    adjustPoison(index, delta) {
-      this._snapshotLife();
-      this.players[index].poison = Math.max(0, this.players[index].poison + delta);
-    },
-
-    adjustCommanderDamage(targetIndex, fromIndex, delta) {
-      this._snapshotLife();
-      const cd = this.players[targetIndex].commanderDamage;
-      cd[fromIndex] = Math.max(0, cd[fromIndex] + delta);
-      // Les dégâts de commandant s'appliquent aussi à la vie totale
-      this.players[targetIndex].life -= delta;
-    },
-
-    undoLife() {
-      if (this.lifeHistory.length === 0) return;
-      this.players = this.lifeHistory.pop();
-    },
-
-    endGameFromCounter() {
+    goToSummary() {
       this.gameForm = { placement: 1, commanderKills: 0, eliminationsTier: 0, commanderDamageKills: 0 };
-      this.view = 'game-summary';
+      this.go('game-summary');
     },
 
-    // -----------------------------------------------------------------
-    // Fin de partie : calcul et application de l'XP
-    // -----------------------------------------------------------------
-    gamePreviewXp() {
-      return calculateGameXp(this.gameForm).total;
-    },
-
-    async submitGameSummary() {
-      const profile = this.activeProfile;
-      if (!profile) return;
+    // ── Fin de partie ──────────────────────────────────────────────
+    async submitGame() {
+      const p = this.ap;
+      if (!p) { this.toast_('Aucun profil actif.'); return; }
 
       const { breakdown, total } = calculateGameXp(this.gameForm);
-      const { finalXp, applied } = applyActiveBoosts(profile, total);
+      const { finalXp, applied } = applyActiveBoosts(p, total);
 
-      // Mise à jour des statistiques cumulées
-      profile.stats.gamesPlayed += 1;
-      profile.stats.totalCommanderKills += this.gameForm.commanderKills;
-      profile.stats.totalEliminations += this.gameForm.eliminationsTier;
-      profile.stats.totalCommanderDamageKills += this.gameForm.commanderDamageKills;
-      profile.stats.totalXpEarned += finalXp;
-      if (this.gameForm.placement === 1) profile.stats.firstPlace += 1;
-      else if (this.gameForm.placement === 2) profile.stats.secondPlace += 1;
-      else if (this.gameForm.placement === 3) profile.stats.thirdPlace += 1;
-      else profile.stats.otherPlace += 1;
+      p.stats.gamesPlayed++;
+      p.stats.totalCommanderKills += this.gameForm.commanderKills;
+      p.stats.totalEliminations += this.gameForm.eliminationsTier;
+      p.stats.totalCommanderDamageKills += this.gameForm.commanderDamageKills;
+      p.stats.totalXpEarned += finalXp;
+      if (this.gameForm.placement === 1) p.stats.firstPlace++;
+      else if (this.gameForm.placement === 2) p.stats.secondPlace++;
+      else if (this.gameForm.placement === 3) p.stats.thirdPlace++;
+      else p.stats.otherPlace++;
 
-      // Décrémente les boosts temporaires APRES les avoir appliqués à cette partie
-      tickBoostCounters(profile);
+      tickBoostCounters(p);
+      const levelsGained = applyXpToProfile(p, finalXp);
 
-      // Applique l'XP et détecte les montées de niveau
-      const levelsGained = applyXpToProfile(profile, finalXp);
-
-      // Historique
-      profile.history.unshift({
+      p.history.unshift({
         id: crypto.randomUUID(),
         date: new Date().toISOString(),
         placement: this.gameForm.placement,
@@ -290,103 +268,59 @@ document.addEventListener('alpine:init', () => {
         levelsGained,
       });
 
-      await this.persist();
+      await this.save();
 
       this.lastGameResult = { breakdown, total, finalXp, boostsApplied: applied, levelsGained };
       this.levelUpQueue = [...levelsGained];
-
-      this.view = 'game-result';
-      this._maybeStartLevelUp();
+      this.go('game-result');
+      this._nextLevelUp();
     },
 
-    _maybeStartLevelUp() {
-      if (this.levelUpQueue.length === 0) {
-        this.currentLevelUpChoices = null;
-        return;
-      }
-      const level = this.levelUpQueue[0];
-      const owned = this.activeProfile.bonuses.map(b => b.id);
-      this.currentLevelUpChoices = {
-        level,
-        options: drawTwoRandomBonuses(level, owned),
-      };
+    _nextLevelUp() {
+      if (!this.levelUpQueue.length) { this.currentLevelUp = null; return; }
+      const lvl = this.levelUpQueue[0];
+      const owned = (this.ap?.bonuses || []).map(b => b.id);
+      this.currentLevelUp = { level: lvl, options: drawTwoRandomBonuses(lvl, owned) };
     },
 
-    async chooseBonus(bonus) {
-      const profile = this.activeProfile;
-      const level = this.levelUpQueue.shift();
-
-      profile.bonuses.push({ ...bonus, level, chosenAt: new Date().toISOString() });
-
-      // Applique les effets "actifs" (boosts temporaires ou permanents)
-      const eff = bonus.effect;
-      if (eff.type === 'double_xp_games') {
-        profile.activeBoosts.doubleXpGamesLeft += eff.value;
-      } else if (eff.type === 'bonus_xp_games') {
-        profile.activeBoosts.bonusXpGamesLeft += eff.value.games;
-        profile.activeBoosts.bonusXpAmount = eff.value.amount;
-      } else if (eff.type === 'permanent_xp_bonus_pct') {
-        profile.activeBoosts.permanentXpBonusPct += eff.value;
-      }
-
-      await this.persist();
-      this.showToast(`Bonus obtenu : ${bonus.name}`);
-      this._maybeStartLevelUp();
+    async pickBonus(bonus) {
+      const p = this.ap;
+      if (!p) return;
+      const lvl = this.levelUpQueue.shift();
+      p.bonuses.push({ ...bonus, level: lvl, chosenAt: new Date().toISOString() });
+      const e = bonus.effect;
+      if (e.type === 'double_xp_games') p.activeBoosts.doubleXpGamesLeft += e.value;
+      else if (e.type === 'bonus_xp_games') { p.activeBoosts.bonusXpGamesLeft += e.value.games; p.activeBoosts.bonusXpAmount = e.value.amount; }
+      else if (e.type === 'permanent_xp_bonus_pct') p.activeBoosts.permanentXpBonusPct += e.value;
+      await this.save();
+      this.toast_(`✨ ${bonus.name}`);
+      this._nextLevelUp();
     },
 
-    finishGameResult() {
-      this.lastGameResult = null;
-      this.view = 'dashboard';
-    },
+    doneResult() { this.lastGameResult = null; this.go('dashboard'); },
 
-    // -----------------------------------------------------------------
-    // Export / Import
-    // -----------------------------------------------------------------
-    async doExportJSON() {
-      await DB.exportJSON();
-      this.showToast('Export JSON téléchargé.');
-    },
+    // ── Export / Import ────────────────────────────────────────────
+    async exportJSON() { await DB.exportJSON(); this.toast_('Export JSON téléchargé.'); },
+    async exportCSV()  { await DB.exportCSV();  this.toast_('Export CSV téléchargé.'); },
 
-    async doExportCSV() {
-      await DB.exportCSV();
-      this.showToast('Export CSV téléchargé.');
-    },
-
-    async handleImportFile(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+    async importFile(e) {
+      const file = e.target.files[0]; if (!file) return;
       this.importError = '';
       try {
         const text = await file.text();
         this.profiles = await DB.importJSON(text);
-        this.showToast('Import réussi.');
-        this.view = 'profiles';
-      } catch (e) {
-        this.importError = "Échec de l'import : fichier invalide.";
-      } finally {
-        event.target.value = '';
-      }
+        this.toast_('Import réussi.');
+        this.go('profiles');
+      } catch { this.importError = 'Fichier invalide.'; }
+      finally { e.target.value = ''; }
     },
 
-    async resetAllData() {
-      if (!confirm('Tout supprimer (profils, historique, réglages) ? Cette action est irréversible.')) return;
-      this.profiles = [];
-      this.activeProfileId = null;
-      await this.persist();
-      await DB.setActiveProfileId('');
-      this.showToast('Toutes les données ont été réinitialisées.');
-      this.view = 'profiles';
-    },
-
-    // -----------------------------------------------------------------
-    // Aides d'affichage divers
-    // -----------------------------------------------------------------
-    formatDate(iso) {
-      return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-    },
-
-    placementLabel(p) {
-      return { 1: '🥇 1ère place', 2: '🥈 2ème place', 3: '🥉 3ème place' }[p] || '4ème place ou moins';
+    async resetAll() {
+      if (!confirm('Tout supprimer ? Action irréversible.')) return;
+      this.profiles = []; this.activeProfileId = null;
+      await this.save(); await DB.setActiveProfileId('');
+      this.toast_('Données réinitialisées.');
+      this.go('profiles');
     },
   }));
 });
