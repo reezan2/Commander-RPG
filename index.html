@@ -1,235 +1,302 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" class="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Commander RPG</title>
-<meta name="description" content="Transforme tes parties de Magic: The Gathering Commander en aventure RPG persistante.">
 <meta name="theme-color" content="#15111a">
-
-<!-- PWA -->
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icons/icon-192.png">
-<link rel="icon" href="./icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Commander RPG">
-
-<!-- Polices -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-
-<!-- Tailwind CSS -->
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = { darkMode: 'class', theme: { extend: {} } };
-</script>
+<script>tailwind.config = { darkMode:'class', theme:{ extend:{} } };</script>
 <link rel="stylesheet" href="./css/style.css">
-
-<!-- Logique applicative (chargée avant Alpine pour que Alpine.data soit prêt à temps) -->
 <script src="./js/db.js"></script>
 <script src="./js/scryfall.js"></script>
 <script src="./js/bonuses-data.js"></script>
 <script src="./js/xp-engine.js"></script>
 <script src="./js/app.js"></script>
-
-<!-- Alpine.js -->
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 
-<body x-data="appState()" x-init="init()" x-cloak class="min-h-screen font-sans pb-24 md:pb-8 antialiased">
+<body x-data="appState()" x-init="init()" x-cloak
+      class="min-h-screen font-sans antialiased select-none"
+      style="background:var(--bg);color:var(--ink);padding-bottom:env(safe-area-inset-bottom)">
 
-  <!-- =========================================================== -->
-  <!-- Barre supérieure                                              -->
-  <!-- =========================================================== -->
-  <header class="sticky top-0 z-30 surface backdrop-blur px-4 py-3 flex items-center justify-between" style="background-color: var(--bg-elevated); border-bottom: 1px solid var(--border);">
-    <div class="flex items-center gap-2">
-      <span class="text-xl">🐉</span>
-      <h1 class="font-display text-lg" style="color: var(--gold-bright);">Commander RPG</h1>
-    </div>
-    <template x-if="view !== 'profiles'">
-      <button class="text-sm opacity-80 hover:opacity-100" style="color: var(--muted);" @click="goTo('profiles')">Profils</button>
-    </template>
-  </header>
-
-  <main class="max-w-lg mx-auto px-4 pt-4">
-
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Liste des profils                                   -->
-    <!-- ========================================================= -->
-    <section x-show="view === 'profiles'" x-cloak>
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="font-display text-2xl" style="color: var(--ink);">Tes Commandants</h2>
-        <button class="btn btn-primary" @click="openNewProfile()">+ Nouveau</button>
+<!-- ============================================================ -->
+<!-- HEADER                                                         -->
+<!-- ============================================================ -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-4 py-3"
+        style="background:var(--bg-elevated);border-bottom:1px solid var(--border);padding-top:max(0.75rem,env(safe-area-inset-top))">
+  <div class="flex items-center gap-2">
+    <span class="text-xl">🐉</span>
+    <span class="font-display text-base" style="color:var(--gold-bright)">Commander RPG</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <!-- Niveau du profil actif dans le header -->
+    <template x-if="ap">
+      <div class="flex items-center gap-2">
+        <div class="medallion medallion-sm" :class="tierClass(ap.level)" style="width:2rem;height:2rem;font-size:0.75rem">
+          <span x-text="ap.level"></span>
+        </div>
+        <span class="text-xs font-medium truncate max-w-24" style="color:var(--muted)" x-text="ap.name"></span>
       </div>
+    </template>
+  </div>
+</header>
 
-      <template x-if="profiles.length === 0">
-        <div class="card-parchment p-8 text-center" style="color: var(--muted);">
-          <p class="text-4xl mb-3">📜</p>
-          <p class="mb-1">Aucun profil pour l'instant.</p>
-          <p class="text-sm">Crée ton premier profil et choisis ton Commander pour démarrer l'aventure.</p>
+<!-- ============================================================ -->
+<!-- CONTENU PRINCIPAL                                              -->
+<!-- ============================================================ -->
+<main class="w-full max-w-md mx-auto px-4 pt-4 pb-4">
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : PROFILS                                              -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='profiles'">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-display text-2xl">Commandants</h2>
+      <button class="btn btn-primary" @click="openNew()">+ Nouveau</button>
+    </div>
+
+    <!-- État vide -->
+    <div x-show="profiles.length===0" class="card-parchment p-8 text-center">
+      <p class="text-5xl mb-3">📜</p>
+      <p class="font-semibold mb-1">Aucun profil</p>
+      <p class="text-sm" style="color:var(--muted)">Crée ton premier profil pour démarrer l'aventure.</p>
+      <button class="btn btn-primary mt-4 w-full" @click="openNew()">Créer mon profil</button>
+    </div>
+
+    <!-- Liste des profils -->
+    <div class="space-y-3">
+      <template x-for="p in profiles" :key="p.id">
+        <div class="card-parchment p-3 flex items-center gap-3 cursor-pointer active:opacity-70"
+             style="transition:opacity .1s"
+             @click="selectProfile(p.id)">
+          <!-- Image commander -->
+          <div class="w-14 h-14 rounded-xl overflow-hidden shrink-0" style="background:var(--bg-elevated);border:1px solid var(--border)">
+            <img x-show="p.commander?.imageUrl" :src="p.commander?.imageUrl"
+                 class="w-full h-full object-cover object-top" loading="lazy" alt="">
+            <div x-show="!p.commander?.imageUrl" class="w-full h-full flex items-center justify-center text-2xl">🐉</div>
+          </div>
+          <!-- Infos -->
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold truncate" x-text="p.name"></p>
+            <p class="text-sm truncate" style="color:var(--muted)" x-text="p.commander?.name || 'Aucun Commander'"></p>
+            <!-- Barre XP mini -->
+            <div class="xp-track mt-1.5">
+              <div class="xp-fill" :style="'width:'+xpBar(p).pct+'%'"></div>
+            </div>
+          </div>
+          <!-- Médaillon niveau -->
+          <div class="medallion medallion-sm shrink-0" :class="tierClass(p.level)">
+            <span x-text="p.level"></span>
+          </div>
         </div>
       </template>
+    </div>
+  </div>
 
-      <div class="space-y-3">
-        <template x-for="p in profiles" :key="p.id">
-          <div class="card-parchment p-3 flex items-center gap-3 cursor-pointer hover:opacity-90" @click="selectProfile(p.id)">
-            <div class="w-14 h-14 rounded-lg overflow-hidden shrink-0" style="background: var(--bg-elevated); border: 1px solid var(--border);">
-              <img x-show="p.commander?.imageUrl" :src="p.commander?.imageUrl" class="w-full h-full object-cover object-top" alt="">
-            </div>
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : NOUVEAU PROFIL / CHANGER COMMANDER                   -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='new-profile'">
+    <div class="flex items-center gap-3 mb-5">
+      <button class="btn btn-secondary btn-icon" @click="_editingExisting ? go('dashboard') : go('profiles')">←</button>
+      <h2 class="font-display text-xl" x-text="_editingExisting ? 'Changer de Commander' : 'Nouveau profil'"></h2>
+    </div>
+
+    <!-- Nom du joueur -->
+    <div x-show="!_editingExisting" class="card-parchment p-4 mb-4">
+      <label class="text-xs uppercase tracking-wide mb-2 block" style="color:var(--muted)">Nom du joueur</label>
+      <input type="text" x-model="draftName"
+             placeholder="Ex : Gandalf le Fourbe"
+             class="w-full rounded-xl px-4 py-3 text-base outline-none"
+             style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--ink)">
+    </div>
+
+    <!-- Recherche Scryfall -->
+    <div class="card-parchment p-4 mb-4">
+      <label class="text-xs uppercase tracking-wide mb-2 block" style="color:var(--muted)">Recherche Commander</label>
+      <div class="relative">
+        <input type="search" x-model="commanderQuery"
+               @input.debounce.500ms="doSearch()"
+               placeholder="Atraxa, Krenko, Muldrotha…"
+               class="w-full rounded-xl px-4 py-3 text-base outline-none pr-10"
+               style="background:var(--bg-elevated);border:1px solid var(--border);color:var(--ink)"
+               autocomplete="off" autocorrect="off" spellcheck="false">
+        <span x-show="searching" class="absolute right-3 top-3.5 text-sm" style="color:var(--muted)">⏳</span>
+      </div>
+      <p x-show="searchError" class="text-sm mt-2" style="color:var(--danger)" x-text="searchError"></p>
+
+      <!-- Résultats -->
+      <div x-show="commanderResults.length>0" class="mt-3 rounded-xl overflow-hidden" style="border:1px solid var(--border)">
+        <template x-for="card in commanderResults" :key="card.id">
+          <div class="flex items-center gap-3 px-3 py-2.5 cursor-pointer active:opacity-70"
+               style="border-bottom:1px solid var(--border);background:var(--bg-elevated)"
+               @click="pickCard(card)">
+            <img x-show="card.imageUrl" :src="card.imageUrl"
+                 class="w-10 h-10 rounded-lg object-cover object-top shrink-0" loading="lazy" alt="">
+            <div class="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-lg"
+                 x-show="!card.imageUrl" style="background:var(--surface)">🐉</div>
             <div class="flex-1 min-w-0">
-              <p class="font-semibold truncate" x-text="p.name"></p>
-              <p class="text-sm truncate" style="color: var(--muted);" x-text="p.commander?.name || 'Aucun Commander'"></p>
+              <p class="text-sm font-semibold truncate" x-text="card.name"></p>
+              <p class="text-xs truncate" style="color:var(--muted)" x-text="card.typeLine"></p>
             </div>
-            <div class="medallion medallion-sm" :class="tierColorClass(p.level)">
-              <span x-text="p.level"></span>
-            </div>
-          </div>
-        </template>
-      </div>
-    </section>
-
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Création profil / choix du Commander                -->
-    <!-- ========================================================= -->
-    <section x-show="view === 'new-profile'" x-cloak>
-      <h2 class="font-display text-2xl mb-4" style="color: var(--ink);" x-text="_editingExisting ? 'Changer de Commander' : 'Nouveau profil'"></h2>
-
-      <div class="card-parchment p-4 mb-4" x-show="!_editingExisting">
-        <label class="text-sm block mb-1" style="color: var(--muted);">Nom du joueur</label>
-        <input type="text" x-model="draftProfile.name" placeholder="Ex : Gandalf le Fourbe"
-               class="w-full rounded-lg px-3 py-2 outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--ink);">
-      </div>
-
-      <div class="card-parchment p-4 mb-4">
-        <label class="text-sm block mb-1" style="color: var(--muted);">Rechercher un Commander (Scryfall)</label>
-        <input type="text" x-model="commanderQuery" @input.debounce.400ms="searchCommander()"
-               placeholder="Ex : Atraxa, Krenko, Muldrotha..."
-               class="w-full rounded-lg px-3 py-2 outline-none" style="background: var(--bg-elevated); border: 1px solid var(--border); color: var(--ink);">
-
-        <p x-show="searching" class="text-sm mt-2" style="color: var(--muted);">Recherche en cours…</p>
-        <p x-show="searchError" class="text-sm mt-2" style="color: var(--danger);" x-text="searchError"></p>
-
-        <div class="mt-3 space-y-2 max-h-80 overflow-y-auto" x-show="commanderResults.length > 0">
-          <template x-for="card in commanderResults" :key="card.id">
-            <div class="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:opacity-90" style="background: var(--bg-elevated);" @click="pickCommander(card)">
-              <img x-show="card.imageUrl" :src="card.imageUrl" class="w-10 h-10 rounded-md object-cover object-top" alt="">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium truncate" x-text="card.name"></p>
-                <p class="text-xs truncate" style="color: var(--muted);" x-text="card.typeLine"></p>
-              </div>
-              <div class="flex gap-1">
-                <template x-for="c in card.colors" :key="c">
-                  <span class="mana-pip" :class="'mana-' + c" x-text="c"></span>
-                </template>
-              </div>
-            </div>
-          </template>
-        </div>
-
-        <template x-if="draftProfile.commander">
-          <div class="mt-4 flex items-center gap-3 p-3 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--gold);">
-            <img x-show="draftProfile.commander.imageUrl" :src="draftProfile.commander.imageUrl" class="w-16 h-16 rounded-md object-cover object-top" alt="">
-            <div class="flex-1 min-w-0">
-              <p class="text-xs uppercase tracking-wide" style="color: var(--gold-bright);">Commander sélectionné</p>
-              <p class="font-semibold truncate" x-text="draftProfile.commander.name"></p>
-              <div class="flex gap-1 mt-1">
-                <template x-for="c in draftProfile.commander.colors" :key="c">
-                  <span class="mana-pip" :class="'mana-' + c" x-text="c"></span>
-                </template>
-              </div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <div class="flex gap-3">
-        <button class="btn btn-secondary flex-1" @click="_editingExisting ? (view = 'dashboard', _editingExisting = false) : goTo('profiles')">Annuler</button>
-        <button class="btn btn-primary flex-1" @click="saveCommanderChange()">Enregistrer</button>
-      </div>
-    </section>
-
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Dashboard du profil actif                            -->
-    <!-- ========================================================= -->
-    <template x-if="view === 'dashboard' && activeProfile">
-      <section>
-        <!-- En-tête profil -->
-        <div class="card-parchment p-4 mb-4 flex items-center gap-4">
-          <div class="medallion" :class="tierColorClass(activeProfile.level)">
-            <span x-text="activeProfile.level"></span>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="font-display text-lg truncate" x-text="activeProfile.name"></p>
-            <p class="text-xs mb-1" style="color: var(--gold-bright);" x-text="tierLabel(activeProfile.level) + ' · Niveau ' + activeProfile.level"></p>
-            <div class="xp-track">
-              <div class="xp-fill" :style="'width:' + xpProgress(activeProfile).pct + '%'"></div>
-            </div>
-            <p class="text-xs mt-1 font-mono-stat" style="color: var(--muted);" x-show="activeProfile.level < 20" x-text="xpProgress(activeProfile).current + ' / ' + xpProgress(activeProfile).needed + ' XP'"></p>
-            <p class="text-xs mt-1" style="color: var(--gold-bright);" x-show="activeProfile.level >= 20">Niveau maximum atteint !</p>
-          </div>
-        </div>
-
-        <!-- Carte Commander -->
-        <div class="card-parchment p-4 mb-4 flex items-center gap-4">
-          <div class="w-20 h-20 rounded-lg overflow-hidden shrink-0" style="background: var(--bg-elevated); border: 1px solid var(--border);">
-            <img x-show="activeProfile.commander?.imageUrl" :src="activeProfile.commander?.imageUrl" class="w-full h-full object-cover object-top" alt="">
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-xs uppercase tracking-wide" style="color: var(--muted);">Commander</p>
-            <p class="font-semibold truncate" x-text="activeProfile.commander?.name"></p>
-            <div class="flex gap-1 mt-1">
-              <template x-for="c in (activeProfile.commander?.colors || [])" :key="c">
-                <span class="mana-pip" :class="'mana-' + c" x-text="c"></span>
+            <div class="flex gap-1 shrink-0">
+              <template x-for="c in card.colors" :key="c">
+                <span class="mana-pip" :class="'mana-'+c" x-text="c"></span>
               </template>
             </div>
           </div>
-          <button class="btn btn-secondary text-xs" @click="changeCommander()">Changer</button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Commander sélectionné -->
+    <div x-show="draftCommander" class="card-parchment p-4 mb-5" style="border-color:var(--gold)">
+      <p class="text-xs uppercase tracking-wide mb-2" style="color:var(--gold-bright)">Commander sélectionné ✓</p>
+      <div class="flex items-center gap-3">
+        <img x-show="draftCommander?.imageUrl" :src="draftCommander?.imageUrl"
+             class="w-16 h-20 rounded-xl object-cover object-top shrink-0" loading="lazy" alt="">
+        <div>
+          <p class="font-semibold" x-text="draftCommander?.name"></p>
+          <p class="text-xs mt-0.5" style="color:var(--muted)" x-text="draftCommander?.typeLine"></p>
+          <div class="flex gap-1 mt-2">
+            <template x-for="c in (draftCommander?.colors||[])" :key="c">
+              <span class="mana-pip" :class="'mana-'+c" x-text="c"></span>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary w-full py-4 text-base" @click="saveProfile()">
+      <span x-text="_editingExisting ? 'Enregistrer' : 'Créer le profil'"></span>
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : DASHBOARD                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='dashboard'">
+    <template x-if="ap">
+      <div>
+        <!-- Hero : médaillon + progression -->
+        <div class="card-parchment p-4 mb-4">
+          <div class="flex items-center gap-4">
+            <div class="medallion medallion-glow shrink-0" :class="tierClass(ap.level)">
+              <span x-text="ap.level"></span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="font-display text-lg truncate" x-text="ap.name"></p>
+              <p class="text-xs mb-2" style="color:var(--gold-bright)"
+                 x-text="tierLabel(ap.level) + ' · Niveau ' + ap.level"></p>
+              <div class="xp-track">
+                <div class="xp-fill" :style="'width:'+xpBar(ap).pct+'%'"></div>
+              </div>
+              <div class="flex justify-between mt-1">
+                <span class="text-xs font-mono-stat" style="color:var(--muted)"
+                      x-show="ap.level<20" x-text="xpBar(ap).current+' / '+xpBar(ap).needed+' XP'"></span>
+                <span class="text-xs" style="color:var(--gold-bright)"
+                      x-show="ap.level>=20">⭐ Niveau MAX</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Actions rapides -->
-        <div class="grid grid-cols-1 gap-3 mb-4">
-          <button class="btn btn-primary w-full py-3" @click="goTo('life-setup')">⚔️ Lancer une partie</button>
+        <!-- Commander -->
+        <div class="card-parchment p-4 mb-4 flex items-center gap-3">
+          <div class="w-16 h-20 rounded-xl overflow-hidden shrink-0" style="background:var(--bg-elevated);border:1px solid var(--border)">
+            <img x-show="ap.commander?.imageUrl" :src="ap.commander?.imageUrl"
+                 class="w-full h-full object-cover object-top" loading="lazy" alt="">
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs uppercase tracking-wide" style="color:var(--muted)">Commander</p>
+            <p class="font-semibold truncate" x-text="ap.commander?.name || '—'"></p>
+            <div class="flex gap-1 mt-1.5">
+              <template x-for="c in (ap.commander?.colors||[])" :key="c">
+                <span class="mana-pip" :class="'mana-'+c" x-text="c"></span>
+              </template>
+            </div>
+          </div>
+          <button class="btn btn-secondary text-xs px-3 py-2" @click="openChangeCommander()">Changer</button>
         </div>
+
+        <!-- CTA Lancer une partie -->
+        <button class="btn btn-primary w-full py-4 text-base mb-4" @click="go('life-setup')">
+          ⚔️ Lancer une partie
+        </button>
 
         <!-- Boosts actifs -->
-        <template x-if="activeProfile.activeBoosts.doubleXpGamesLeft > 0 || activeProfile.activeBoosts.bonusXpGamesLeft > 0 || activeProfile.activeBoosts.permanentXpBonusPct > 0">
-          <div class="card-parchment p-3 mb-4 text-sm">
-            <p class="text-xs uppercase tracking-wide mb-1" style="color: var(--gold-bright);">Effets actifs</p>
-            <p x-show="activeProfile.activeBoosts.doubleXpGamesLeft > 0" style="color: var(--muted);">⚡ Double XP — <span x-text="activeProfile.activeBoosts.doubleXpGamesLeft"></span> partie(s) restante(s)</p>
-            <p x-show="activeProfile.activeBoosts.bonusXpGamesLeft > 0" style="color: var(--muted);">⏳ +<span x-text="activeProfile.activeBoosts.bonusXpAmount"></span> XP — <span x-text="activeProfile.activeBoosts.bonusXpGamesLeft"></span> partie(s) restante(s)</p>
-            <p x-show="activeProfile.activeBoosts.permanentXpBonusPct > 0" style="color: var(--muted);">🏵️ +<span x-text="activeProfile.activeBoosts.permanentXpBonusPct"></span>% XP permanent</p>
-          </div>
-        </template>
+        <div x-show="ap.activeBoosts.doubleXpGamesLeft>0||ap.activeBoosts.bonusXpGamesLeft>0||ap.activeBoosts.permanentXpBonusPct>0"
+             class="card-parchment p-3 mb-4">
+          <p class="text-xs uppercase tracking-wide mb-2" style="color:var(--gold-bright)">⚡ Effets actifs</p>
+          <p x-show="ap.activeBoosts.doubleXpGamesLeft>0" class="text-sm" style="color:var(--muted)">
+            Double XP — <span x-text="ap.activeBoosts.doubleXpGamesLeft"></span> partie(s)
+          </p>
+          <p x-show="ap.activeBoosts.bonusXpGamesLeft>0" class="text-sm" style="color:var(--muted)">
+            +<span x-text="ap.activeBoosts.bonusXpAmount"></span> XP/partie — <span x-text="ap.activeBoosts.bonusXpGamesLeft"></span> partie(s)
+          </p>
+          <p x-show="ap.activeBoosts.permanentXpBonusPct>0" class="text-sm" style="color:var(--muted)">
+            🏵️ +<span x-text="ap.activeBoosts.permanentXpBonusPct"></span>% XP permanent
+          </p>
+        </div>
 
-        <!-- Statistiques -->
+        <!-- Stats -->
         <div class="card-parchment p-4 mb-4">
-          <p class="font-display text-sm mb-3" style="color: var(--gold-bright);">Statistiques</p>
-          <div class="grid grid-cols-3 gap-3 text-center font-mono-stat">
-            <div><p class="text-xl font-bold" x-text="activeProfile.stats.gamesPlayed"></p><p class="text-xs" style="color: var(--muted);">Parties</p></div>
-            <div><p class="text-xl font-bold">🥇<span x-text="activeProfile.stats.firstPlace"></span></p><p class="text-xs" style="color: var(--muted);">1ères places</p></div>
-            <div><p class="text-xl font-bold" x-text="activeProfile.stats.totalXpEarned"></p><p class="text-xs" style="color: var(--muted);">XP total</p></div>
-            <div><p class="text-xl font-bold" x-text="activeProfile.stats.totalCommanderKills"></p><p class="text-xs" style="color: var(--muted);">Cmd. tués</p></div>
-            <div><p class="text-xl font-bold" x-text="activeProfile.stats.totalEliminations"></p><p class="text-xs" style="color: var(--muted);">Éliminations</p></div>
-            <div><p class="text-xl font-bold" x-text="activeProfile.stats.totalCommanderDamageKills"></p><p class="text-xs" style="color: var(--muted);">Kills Cmd dmg</p></div>
+          <p class="font-display text-sm mb-3" style="color:var(--gold-bright)">Statistiques</p>
+          <div class="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p class="font-mono-stat text-2xl font-bold" x-text="ap.stats.gamesPlayed"></p>
+              <p class="text-xs mt-0.5" style="color:var(--muted)">Parties</p>
+            </div>
+            <div>
+              <p class="font-mono-stat text-2xl font-bold">🥇<span x-text="ap.stats.firstPlace"></span></p>
+              <p class="text-xs mt-0.5" style="color:var(--muted)">Victoires</p>
+            </div>
+            <div>
+              <p class="font-mono-stat text-2xl font-bold" x-text="ap.stats.totalXpEarned"></p>
+              <p class="text-xs mt-0.5" style="color:var(--muted)">XP total</p>
+            </div>
+            <div>
+              <p class="font-mono-stat text-xl font-bold" x-text="ap.stats.totalCommanderKills"></p>
+              <p class="text-xs mt-0.5" style="color:var(--muted)">Cmd. éliminés</p>
+            </div>
+            <div>
+              <p class="font-mono-stat text-xl font-bold" x-text="ap.stats.totalEliminations"></p>
+              <p class="text-xs mt-0.5" style="color:var(--muted)">Joueurs out</p>
+            </div>
+            <div>
+              <p class="font-mono-stat text-xl font-bold" x-text="ap.stats.totalCommanderDamageKills"></p>
+              <p class="text-xs mt-0.5" style="color:var(--muted)">Kills Cmd dmg</p>
+            </div>
           </div>
         </div>
 
         <!-- Bonus obtenus -->
         <div class="card-parchment p-4 mb-4">
-          <p class="font-display text-sm mb-3" style="color: var(--gold-bright);">Bonus obtenus (<span x-text="activeProfile.bonuses.length"></span>)</p>
-          <template x-if="activeProfile.bonuses.length === 0">
-            <p class="text-sm" style="color: var(--muted);">Monte de niveau pour débloquer tes premiers bonus.</p>
-          </template>
-          <div class="space-y-2">
-            <template x-for="b in [...activeProfile.bonuses].reverse()" :key="b.id + b.level">
-              <div class="flex items-start gap-2 text-sm">
-                <span x-text="b.icon"></span>
-                <div class="flex-1">
-                  <p class="font-medium" :style="b.major ? 'color: var(--gold-bright)' : ''" x-text="b.name + (b.major ? ' (Majeur)' : '')"></p>
-                  <p class="text-xs" style="color: var(--muted);" x-text="b.desc"></p>
+          <p class="font-display text-sm mb-3" style="color:var(--gold-bright)">
+            Bonus (<span x-text="ap.bonuses.length"></span>)
+          </p>
+          <p x-show="ap.bonuses.length===0" class="text-sm" style="color:var(--muted)">
+            Monte de niveau pour débloquer tes premiers bonus.
+          </p>
+          <div class="space-y-3">
+            <template x-for="b in [...ap.bonuses].reverse()" :key="b.id+'_'+b.level">
+              <div class="flex items-start gap-2">
+                <span class="text-xl shrink-0" x-text="b.icon"></span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-semibold"
+                     :style="b.major?'color:var(--gold-bright)':''"
+                     x-text="b.name+(b.major?' ★':'')"></p>
+                  <p class="text-xs" style="color:var(--muted)" x-text="b.desc"></p>
                 </div>
-                <span class="text-xs font-mono-stat" style="color: var(--muted);" x-text="'Niv. ' + b.level"></span>
+                <span class="text-xs font-mono-stat shrink-0" style="color:var(--muted)"
+                      x-text="'Niv.'+b.level"></span>
               </div>
             </template>
           </div>
@@ -237,298 +304,371 @@
 
         <!-- Historique -->
         <div class="card-parchment p-4 mb-4">
-          <p class="font-display text-sm mb-3" style="color: var(--gold-bright);">Historique des parties</p>
-          <template x-if="activeProfile.history.length === 0">
-            <p class="text-sm" style="color: var(--muted);">Aucune partie enregistrée pour l'instant.</p>
-          </template>
-          <div class="space-y-2 max-h-96 overflow-y-auto">
-            <template x-for="h in activeProfile.history" :key="h.id">
-              <div class="flex items-center justify-between text-sm py-2" style="border-bottom: 1px solid var(--border);">
+          <p class="font-display text-sm mb-3" style="color:var(--gold-bright)">Historique</p>
+          <p x-show="ap.history.length===0" class="text-sm" style="color:var(--muted)">Aucune partie enregistrée.</p>
+          <div class="space-y-0 divide-y" style="--tw-divide-opacity:1">
+            <template x-for="h in ap.history.slice(0,20)" :key="h.id">
+              <div class="flex items-center justify-between py-2.5">
                 <div>
-                  <p x-text="placementLabel(h.placement)"></p>
-                  <p class="text-xs" style="color: var(--muted);" x-text="formatDate(h.date)"></p>
+                  <p class="text-sm font-medium" x-text="placeLabel(h.placement)"></p>
+                  <p class="text-xs" style="color:var(--muted)" x-text="formatDate(h.date)"></p>
                 </div>
-                <p class="font-mono-stat font-semibold" style="color: var(--gold-bright);" x-text="'+' + h.totalXp + ' XP'"></p>
+                <p class="font-mono-stat font-bold" style="color:var(--gold-bright)"
+                   x-text="'+'+h.totalXp+' XP'"></p>
               </div>
             </template>
           </div>
         </div>
 
-        <button class="btn btn-danger w-full" @click="deleteProfile(activeProfile.id)">Supprimer ce profil</button>
-      </section>
+        <button class="btn btn-danger w-full mb-4" @click="deleteProfile(ap.id)">🗑 Supprimer ce profil</button>
+      </div>
     </template>
 
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Configuration du compteur de vie                    -->
-    <!-- ========================================================= -->
-    <section x-show="view === 'life-setup'" x-cloak>
-      <h2 class="font-display text-2xl mb-4" style="color: var(--ink);">Nouvelle partie</h2>
+    <!-- Fallback si aucun profil actif -->
+    <div x-show="!ap" class="card-parchment p-8 text-center">
+      <p class="text-4xl mb-3">🛡️</p>
+      <p class="mb-3" style="color:var(--muted)">Sélectionne un profil pour voir ton dashboard.</p>
+      <button class="btn btn-primary" @click="go('profiles')">Voir les profils</button>
+    </div>
+  </div>
 
-      <div class="card-parchment p-4 mb-4">
-        <label class="text-sm block mb-2" style="color: var(--muted);">Nombre de joueurs</label>
-        <div class="grid grid-cols-5 gap-2">
-          <template x-for="n in [2,3,4,5,6]" :key="n">
-            <button class="btn" :class="numPlayers === n ? 'btn-primary' : 'btn-secondary'" @click="numPlayers = n" x-text="n"></button>
-          </template>
-        </div>
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : CONFIG PARTIE                                        -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='life-setup'">
+    <div class="flex items-center gap-3 mb-5">
+      <button class="btn btn-secondary btn-icon" @click="go('dashboard')">←</button>
+      <h2 class="font-display text-xl">Nouvelle partie</h2>
+    </div>
+
+    <div class="card-parchment p-4 mb-4">
+      <p class="text-xs uppercase tracking-wide mb-3" style="color:var(--muted)">Nombre de joueurs</p>
+      <div class="grid grid-cols-5 gap-2">
+        <template x-for="n in [2,3,4,5,6]" :key="n">
+          <button class="btn py-3 text-lg font-bold"
+                  :class="numPlayers===n?'btn-primary':'btn-secondary'"
+                  @click="numPlayers=n" x-text="n"></button>
+        </template>
       </div>
+    </div>
 
-      <div class="card-parchment p-4 mb-4">
-        <label class="text-sm block mb-2" style="color: var(--muted);">Vie de départ</label>
-        <div class="grid grid-cols-3 gap-2">
-          <template x-for="n in [20,30,40]" :key="n">
-            <button class="btn" :class="startingLife === n ? 'btn-primary' : 'btn-secondary'" @click="startingLife = n" x-text="n"></button>
-          </template>
-        </div>
+    <div class="card-parchment p-4 mb-6">
+      <p class="text-xs uppercase tracking-wide mb-3" style="color:var(--muted)">Vie de départ</p>
+      <div class="grid grid-cols-3 gap-3">
+        <template x-for="n in [20,30,40]" :key="n">
+          <button class="btn py-4 text-xl font-bold font-mono-stat"
+                  :class="startingLife===n?'btn-primary':'btn-secondary'"
+                  @click="startingLife=n" x-text="n"></button>
+        </template>
       </div>
+    </div>
 
-      <button class="btn btn-primary w-full py-3" @click="setupLifeCounter(numPlayers)">Démarrer le compteur</button>
-    </section>
+    <button class="btn btn-primary w-full py-4 text-base" @click="setupLife(numPlayers)">
+      ⚔️ Démarrer le compteur
+    </button>
+  </div>
 
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Compteur de vie                                      -->
-    <!-- ========================================================= -->
-    <section x-show="view === 'life-counter'" x-cloak>
-      <div class="flex items-center justify-between mb-3">
-        <button class="btn btn-secondary btn-icon" @click="undoLife()" title="Annuler la dernière action">↺</button>
-        <h2 class="font-display text-lg" style="color: var(--ink);">Compteur de vie</h2>
-        <button class="btn btn-primary text-sm" @click="endGameFromCounter()">Fin de partie</button>
-      </div>
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : COMPTEUR DE VIE (plein écran, pas de nav basse)     -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='life-counter'" class="-mx-4 -mt-4">
+    <!-- Barre d'actions -->
+    <div class="flex items-center justify-between px-4 py-2.5"
+         style="background:var(--bg-elevated);border-bottom:1px solid var(--border)">
+      <button class="btn btn-secondary text-sm px-3 py-2" @click="undo()">↺ Annuler</button>
+      <span class="font-display text-sm" style="color:var(--gold-bright)">Compteur de vie</span>
+      <button class="btn btn-primary text-sm px-3 py-2" @click="goToSummary()">Fin de partie</button>
+    </div>
 
-      <div class="space-y-3">
-        <template x-for="(player, i) in players" :key="i">
-          <div class="life-tile" x-data="{ expanded: false }">
-            <div class="px-3 pt-3 pb-2 flex items-center justify-between">
-              <input type="text" x-model="player.name" class="bg-transparent font-medium text-sm outline-none w-1/2" style="color: var(--ink);">
-              <div class="flex items-center gap-2">
-                <span x-show="player.poison > 0" class="text-xs px-2 py-0.5 rounded-full" style="background: var(--mana-g); color: white;">
-                  ☠ <span x-text="player.poison"></span>
-                </span>
-                <button class="text-xs underline" style="color: var(--muted);" @click="expanded = !expanded">Détails</button>
-              </div>
+    <!-- Grilles de joueurs -->
+    <div class="p-3 space-y-3">
+      <template x-for="(pl, i) in players" :key="i">
+        <div class="rounded-2xl overflow-hidden" style="background:var(--surface);border:1px solid var(--border)">
+          <!-- En-tête tuile -->
+          <div class="flex items-center justify-between px-3 pt-2.5 pb-1">
+            <input type="text" x-model="pl.name"
+                   class="bg-transparent font-semibold text-sm outline-none flex-1"
+                   style="color:var(--ink)">
+            <div class="flex items-center gap-2">
+              <span x-show="pl.poison>0"
+                    class="text-xs px-2 py-0.5 rounded-full font-mono-stat"
+                    style="background:var(--mana-g);color:white">☠ <span x-text="pl.poison"></span></span>
+              <button class="text-xs underline" style="color:var(--muted)"
+                      @click="pl.showDetails=!pl.showDetails"
+                      x-text="pl.showDetails?'Fermer':'Détails'"></button>
             </div>
+          </div>
 
-            <div class="flex items-stretch" style="height: 6rem;">
-              <div class="life-btn" style="color: var(--danger);" @click="adjustLife(i, -1)">−</div>
-              <div class="flex flex-col items-center justify-center px-4 font-mono-stat" style="min-width: 5rem;">
-                <span class="text-3xl font-bold" style="color: var(--ink);" x-text="player.life"></span>
-              </div>
-              <div class="life-btn" style="color: var(--success);" @click="adjustLife(i, 1)">+</div>
+          <!-- Compteur de vie principal -->
+          <div class="flex items-stretch" style="height:7rem">
+            <button class="life-btn text-3xl font-bold"
+                    style="color:var(--danger);flex:1"
+                    @click="adj(i,-1)" @click.prevent
+                    ontouchstart="">−</button>
+            <div class="flex flex-col items-center justify-center px-3" style="min-width:5.5rem">
+              <span class="font-mono-stat font-bold" style="font-size:2.5rem;color:var(--ink);line-height:1"
+                    x-text="pl.life"></span>
+              <span class="text-xs mt-1" style="color:var(--muted)">PV</span>
             </div>
-            <div class="flex justify-center gap-3 pb-3">
-              <button class="text-xs px-2 py-1 rounded-md btn-secondary" @click="adjustLife(i, -5)">-5</button>
-              <button class="text-xs px-2 py-1 rounded-md btn-secondary" @click="adjustLife(i, 5)">+5</button>
-            </div>
+            <button class="life-btn text-3xl font-bold"
+                    style="color:var(--success);flex:1"
+                    @click="adj(i,1)" @click.prevent
+                    ontouchstart="">+</button>
+          </div>
 
-            <div x-show="expanded" class="px-3 pb-3" style="border-top: 1px solid var(--border);">
-              <p class="text-xs uppercase tracking-wide mt-2 mb-1" style="color: var(--muted);">Poison</p>
-              <div class="flex items-center gap-2 mb-3">
-                <button class="btn btn-secondary btn-icon text-sm" @click="adjustPoison(i, -1)">−</button>
-                <span class="font-mono-stat w-6 text-center" x-text="player.poison"></span>
-                <button class="btn btn-secondary btn-icon text-sm" @click="adjustPoison(i, 1)">+</button>
+          <!-- Boutons rapides ±5 -->
+          <div class="flex justify-center gap-3 pb-2.5">
+            <button class="btn btn-secondary text-sm px-4 py-1.5 rounded-full" @click="adj(i,-5)">−5</button>
+            <button class="btn btn-secondary text-sm px-4 py-1.5 rounded-full" @click="adj(i,-2)">−2</button>
+            <button class="btn btn-secondary text-sm px-4 py-1.5 rounded-full" @click="adj(i,2)">+2</button>
+            <button class="btn btn-secondary text-sm px-4 py-1.5 rounded-full" @click="adj(i,5)">+5</button>
+          </div>
+
+          <!-- Détails : poison + dégâts de commander -->
+          <div x-show="pl.showDetails" style="border-top:1px solid var(--border)">
+            <div class="px-3 py-3 space-y-3">
+              <!-- Poison -->
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium">☠ Poison</span>
+                <div class="flex items-center gap-3">
+                  <button class="btn btn-secondary btn-icon text-base" @click="adjPoison(i,-1)">−</button>
+                  <span class="font-mono-stat w-5 text-center font-bold" x-text="pl.poison"></span>
+                  <button class="btn btn-secondary btn-icon text-base" @click="adjPoison(i,1)">+</button>
+                </div>
               </div>
-
-              <p class="text-xs uppercase tracking-wide mb-1" style="color: var(--muted);">Dégâts de Commander subis</p>
-              <template x-for="(opp, j) in players" :key="j">
-                <div class="flex items-center justify-between py-1" x-show="j !== i">
-                  <span class="text-sm" style="color: var(--muted);" x-text="'De ' + opp.name"></span>
-                  <div class="flex items-center gap-2">
-                    <button class="btn btn-secondary btn-icon text-sm" @click="adjustCommanderDamage(i, j, -1)">−</button>
-                    <span class="font-mono-stat w-6 text-center" x-text="player.commanderDamage[j]"></span>
-                    <button class="btn btn-secondary btn-icon text-sm" @click="adjustCommanderDamage(i, j, 1)">+</button>
+              <!-- Dégâts Commander -->
+              <p class="text-xs uppercase tracking-wide" style="color:var(--muted)">Dégâts de Commander reçus</p>
+              <template x-for="(opp,j) in players" :key="j">
+                <div x-show="j!==i" class="flex items-center justify-between">
+                  <span class="text-sm truncate" style="color:var(--muted)" x-text="'De '+opp.name"></span>
+                  <div class="flex items-center gap-3">
+                    <button class="btn btn-secondary btn-icon text-base" @click="adjCmd(i,j,-1)">−</button>
+                    <span class="font-mono-stat w-5 text-center font-bold" x-text="pl.cmdDmg[j]"></span>
+                    <button class="btn btn-secondary btn-icon text-base" @click="adjCmd(i,j,1)">+</button>
                   </div>
                 </div>
               </template>
             </div>
           </div>
-        </template>
-      </div>
-    </section>
-
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Récapitulatif de fin de partie (checklist XP)        -->
-    <!-- ========================================================= -->
-    <section x-show="view === 'game-summary'" x-cloak>
-      <h2 class="font-display text-2xl mb-1" style="color: var(--ink);">Fin de partie</h2>
-      <p class="text-sm mb-4" style="color: var(--muted);">Coche ce que ton Commander a accompli. L'XP se calcule automatiquement.</p>
-
-      <div class="card-parchment p-4 mb-4">
-        <p class="text-sm font-medium mb-2" style="color: var(--ink);">Place obtenue</p>
-        <div class="grid grid-cols-4 gap-2">
-          <template x-for="p in [1,2,3,4]" :key="p">
-            <button class="btn text-sm" :class="gameForm.placement === p ? 'btn-primary' : 'btn-secondary'" @click="gameForm.placement = p">
-              <span x-text="p < 4 ? p + 'er/ère' : '4e+'"></span>
-            </button>
-          </template>
         </div>
-      </div>
-
-      <div class="card-parchment p-4 mb-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium" style="color: var(--ink);">Commanders adverses éliminés / renvoyés</p>
-            <p class="text-xs" style="color: var(--muted);">+25 XP chacun</p>
-          </div>
-          <div class="flex items-center gap-3">
-            <button class="btn btn-secondary btn-icon" @click="gameForm.commanderKills = Math.max(0, gameForm.commanderKills - 1)">−</button>
-            <span class="font-mono-stat w-6 text-center text-lg" x-text="gameForm.commanderKills"></span>
-            <button class="btn btn-secondary btn-icon" @click="gameForm.commanderKills += 1">+</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card-parchment p-4 mb-4">
-        <p class="text-sm font-medium mb-2" style="color: var(--ink);">Joueurs éliminés</p>
-        <div class="grid grid-cols-4 gap-2">
-          <button class="btn text-sm" :class="gameForm.eliminationsTier === 0 ? 'btn-primary' : 'btn-secondary'" @click="gameForm.eliminationsTier = 0">0</button>
-          <button class="btn text-sm" :class="gameForm.eliminationsTier === 1 ? 'btn-primary' : 'btn-secondary'" @click="gameForm.eliminationsTier = 1">1 (+40)</button>
-          <button class="btn text-sm" :class="gameForm.eliminationsTier === 2 ? 'btn-primary' : 'btn-secondary'" @click="gameForm.eliminationsTier = 2">2 (+70)</button>
-          <button class="btn text-sm" :class="gameForm.eliminationsTier === 3 ? 'btn-primary' : 'btn-secondary'" @click="gameForm.eliminationsTier = 3">3+ (+110)</button>
-        </div>
-      </div>
-
-      <div class="card-parchment p-4 mb-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium" style="color: var(--ink);">Kills via dégâts de Commander</p>
-            <p class="text-xs" style="color: var(--muted);">+50 XP chacun</p>
-          </div>
-          <div class="flex items-center gap-3">
-            <button class="btn btn-secondary btn-icon" @click="gameForm.commanderDamageKills = Math.max(0, gameForm.commanderDamageKills - 1)">−</button>
-            <span class="font-mono-stat w-6 text-center text-lg" x-text="gameForm.commanderDamageKills"></span>
-            <button class="btn btn-secondary btn-icon" @click="gameForm.commanderDamageKills += 1">+</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="card-parchment p-4 mb-4 flex items-center justify-between" style="border-color: var(--gold);">
-        <span class="font-display" style="color: var(--gold-bright);">XP total estimé</span>
-        <span class="font-mono-stat text-2xl font-bold" style="color: var(--gold-bright);" x-text="gamePreviewXp()"></span>
-      </div>
-
-      <button class="btn btn-primary w-full py-3" @click="submitGameSummary()">Valider la partie</button>
-    </section>
-
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Résultat de la partie                                -->
-    <!-- ========================================================= -->
-    <template x-if="view === 'game-result' && lastGameResult">
-      <section>
-        <h2 class="font-display text-2xl mb-4 text-center" style="color: var(--gold-bright);">Victoire d'expérience !</h2>
-
-        <div class="card-parchment p-4 mb-4">
-          <template x-for="(b, idx) in lastGameResult.breakdown" :key="idx">
-            <div class="flex items-center justify-between py-1.5 text-sm" style="border-bottom: 1px solid var(--border);">
-              <span style="color: var(--muted);" x-text="b.label"></span>
-              <span class="font-mono-stat" style="color: var(--ink);" x-text="'+' + b.xp"></span>
-            </div>
-          </template>
-          <template x-for="(a, idx) in lastGameResult.boostsApplied" :key="'boost'+idx">
-            <div class="flex items-center justify-between py-1.5 text-sm">
-              <span style="color: var(--gold-bright);" x-text="a"></span>
-            </div>
-          </template>
-          <div class="flex items-center justify-between pt-2 mt-2 font-display" style="border-top: 1px solid var(--gold);">
-            <span style="color: var(--gold-bright);">Total gagné</span>
-            <span class="font-mono-stat text-xl font-bold" style="color: var(--gold-bright);" x-text="'+' + lastGameResult.finalXp + ' XP'"></span>
-          </div>
-        </div>
-
-        <button class="btn btn-primary w-full py-3" @click="finishGameResult()" x-show="!currentLevelUpChoices">Retour au dashboard</button>
-        <p class="text-center text-sm" style="color: var(--muted);" x-show="currentLevelUpChoices">Montée de niveau en cours…</p>
-      </section>
-    </template>
-
-    <!-- ========================================================= -->
-    <!-- ÉCRAN : Réglages                                             -->
-    <!-- ========================================================= -->
-    <section x-show="view === 'settings'" x-cloak>
-      <h2 class="font-display text-2xl mb-4" style="color: var(--ink);">Réglages</h2>
-
-      <div class="card-parchment p-4 mb-4 flex items-center justify-between">
-        <span class="text-sm" style="color: var(--ink);">Mode sombre</span>
-        <button class="btn btn-secondary" @click="toggleDarkMode()" x-text="darkMode ? 'Activé' : 'Désactivé'"></button>
-      </div>
-
-      <div class="card-parchment p-4 mb-4">
-        <p class="text-sm font-medium mb-3" style="color: var(--ink);">Sauvegarde des données</p>
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <button class="btn btn-secondary" @click="doExportJSON()">Exporter JSON</button>
-          <button class="btn btn-secondary" @click="doExportCSV()">Exporter CSV</button>
-        </div>
-        <label class="btn btn-secondary w-full cursor-pointer block text-center">
-          Importer un fichier JSON
-          <input type="file" accept="application/json" class="hidden" @change="handleImportFile($event)">
-        </label>
-        <p x-show="importError" class="text-sm mt-2" style="color: var(--danger);" x-text="importError"></p>
-      </div>
-
-      <div class="card-parchment p-4 mb-4">
-        <p class="text-sm font-medium mb-2" style="color: var(--ink);">Zone de danger</p>
-        <button class="btn btn-danger w-full" @click="resetAllData()">Réinitialiser toutes les données</button>
-      </div>
-
-      <div class="text-center text-xs pb-4" style="color: var(--muted);">
-        <p>Commander RPG — v1.0</p>
-        <p>Non affilié à Wizards of the Coast. Données de cartes via Scryfall.</p>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- =========================================================== -->
-  <!-- Navigation basse                                              -->
-  <!-- =========================================================== -->
-  <nav class="bottom-nav fixed bottom-0 inset-x-0 z-30 flex justify-around py-2" x-show="view !== 'life-counter'" x-cloak>
-    <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-3 py-1" :class="view === 'profiles' ? 'active' : ''" @click="goTo('profiles')">
-      <span class="text-lg">📜</span><span class="text-[11px]">Profils</span>
-    </button>
-    <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-3 py-1" :class="view === 'dashboard' ? 'active' : ''" @click="activeProfile ? goTo('dashboard') : goTo('profiles')">
-      <span class="text-lg">🛡️</span><span class="text-[11px]">Dashboard</span>
-    </button>
-    <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-3 py-1" :class="view === 'life-setup' ? 'active' : ''" @click="activeProfile ? goTo('life-setup') : goTo('profiles')">
-      <span class="text-lg">⚔️</span><span class="text-[11px]">Partie</span>
-    </button>
-    <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-3 py-1" :class="view === 'settings' ? 'active' : ''" @click="goTo('settings')">
-      <span class="text-lg">⚙️</span><span class="text-[11px]">Réglages</span>
-    </button>
-  </nav>
-
-  <!-- =========================================================== -->
-  <!-- Modale : choix de bonus (Level Up)                            -->
-  <!-- =========================================================== -->
-  <div x-show="currentLevelUpChoices" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background: rgba(0,0,0,0.7);">
-    <div class="modal-panel card-parchment p-5 w-full max-w-sm" style="border-color: var(--gold);" x-show="currentLevelUpChoices">
-      <div class="flex flex-col items-center mb-4">
-        <div class="medallion medallion-glow mb-2" :class="currentLevelUpChoices ? tierColorClass(currentLevelUpChoices.level) : ''">
-          <span x-text="currentLevelUpChoices?.level"></span>
-        </div>
-        <p class="font-display text-lg" style="color: var(--gold-bright);">Niveau supérieur !</p>
-        <p class="text-sm text-center" style="color: var(--muted);">Choisis un bonus pour ton Commander</p>
-      </div>
-
-      <div class="space-y-3">
-        <template x-for="opt in (currentLevelUpChoices?.options || [])" :key="opt.id">
-          <button class="w-full text-left p-3 rounded-lg hover:opacity-90" style="background: var(--bg-elevated); border: 1px solid var(--border);" @click="chooseBonus(opt)">
-            <div class="flex items-start gap-2">
-              <span class="text-xl" x-text="opt.icon"></span>
-              <div>
-                <p class="font-medium" :style="opt.major ? 'color: var(--gold-bright)' : 'color: var(--ink)'" x-text="opt.name + (opt.major ? ' ★ Majeur' : '')"></p>
-                <p class="text-xs mt-0.5" style="color: var(--muted);" x-text="opt.desc"></p>
-              </div>
-            </div>
-          </button>
-        </template>
-      </div>
+      </template>
     </div>
   </div>
 
-  <!-- =========================================================== -->
-  <!-- Toast                                                         -->
-  <!-- =========================================================== -->
-  <div x-show="toast" x-transition x-cloak class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full text-sm shadow-lg" style="background: var(--gold-bright); color: #1c1622;">
-    <span x-text="toast"></span>
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : RÉCAPITULATIF FIN DE PARTIE                         -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='game-summary'">
+    <div class="flex items-center gap-3 mb-5">
+      <button class="btn btn-secondary btn-icon" @click="go('life-counter')">←</button>
+      <h2 class="font-display text-xl">Fin de partie</h2>
+    </div>
+
+    <!-- Place -->
+    <div class="card-parchment p-4 mb-4">
+      <p class="text-xs uppercase tracking-wide mb-3" style="color:var(--muted)">Ta place dans cette partie</p>
+      <div class="grid grid-cols-4 gap-2">
+        <button class="btn py-3 text-sm font-bold" :class="gameForm.placement===1?'btn-primary':'btn-secondary'" @click="gameForm.placement=1">🥇 1er</button>
+        <button class="btn py-3 text-sm font-bold" :class="gameForm.placement===2?'btn-primary':'btn-secondary'" @click="gameForm.placement=2">🥈 2e</button>
+        <button class="btn py-3 text-sm font-bold" :class="gameForm.placement===3?'btn-primary':'btn-secondary'" @click="gameForm.placement=3">🥉 3e</button>
+        <button class="btn py-3 text-sm font-bold" :class="gameForm.placement===4?'btn-primary':'btn-secondary'" @click="gameForm.placement=4">4e+</button>
+      </div>
+    </div>
+
+    <!-- Commanders éliminés -->
+    <div class="card-parchment p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-medium text-sm">Commanders adverses éliminés</p>
+          <p class="text-xs mt-0.5" style="color:var(--muted)">+25 XP chacun</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="btn btn-secondary btn-icon text-xl" @click="gameForm.commanderKills=Math.max(0,gameForm.commanderKills-1)">−</button>
+          <span class="font-mono-stat text-2xl font-bold w-8 text-center" x-text="gameForm.commanderKills"></span>
+          <button class="btn btn-secondary btn-icon text-xl" @click="gameForm.commanderKills++">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Joueurs éliminés -->
+    <div class="card-parchment p-4 mb-4">
+      <p class="font-medium text-sm mb-3">Joueurs éliminés dans la partie</p>
+      <div class="grid grid-cols-4 gap-2">
+        <button class="btn py-3 text-sm" :class="gameForm.eliminationsTier===0?'btn-primary':'btn-secondary'" @click="gameForm.eliminationsTier=0">0</button>
+        <button class="btn py-3 text-sm" :class="gameForm.eliminationsTier===1?'btn-primary':'btn-secondary'" @click="gameForm.eliminationsTier=1">1<br><span class="text-xs opacity-70">+40</span></button>
+        <button class="btn py-3 text-sm" :class="gameForm.eliminationsTier===2?'btn-primary':'btn-secondary'" @click="gameForm.eliminationsTier=2">2<br><span class="text-xs opacity-70">+70</span></button>
+        <button class="btn py-3 text-sm" :class="gameForm.eliminationsTier===3?'btn-primary':'btn-secondary'" @click="gameForm.eliminationsTier=3">3+<br><span class="text-xs opacity-70">+110</span></button>
+      </div>
+    </div>
+
+    <!-- Kills par dégâts de commander -->
+    <div class="card-parchment p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-medium text-sm">Kills par dégâts de Commander</p>
+          <p class="text-xs mt-0.5" style="color:var(--muted)">+50 XP chacun</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="btn btn-secondary btn-icon text-xl" @click="gameForm.commanderDamageKills=Math.max(0,gameForm.commanderDamageKills-1)">−</button>
+          <span class="font-mono-stat text-2xl font-bold w-8 text-center" x-text="gameForm.commanderDamageKills"></span>
+          <button class="btn btn-secondary btn-icon text-xl" @click="gameForm.commanderDamageKills++">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total estimé -->
+    <div class="card-parchment p-4 mb-5 flex items-center justify-between" style="border-color:var(--gold)">
+      <span class="font-display" style="color:var(--gold-bright)">XP estimé</span>
+      <span class="font-mono-stat text-3xl font-bold" style="color:var(--gold-bright)" x-text="previewXp()"></span>
+    </div>
+
+    <button class="btn btn-primary w-full py-4 text-base" @click="submitGame()">
+      ✔ Valider la partie
+    </button>
   </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : RÉSULTAT XP                                         -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='game-result' && lastGameResult">
+    <h2 class="font-display text-2xl text-center mb-5" style="color:var(--gold-bright)">⭐ XP Gagnée !</h2>
+
+    <div class="card-parchment p-4 mb-5">
+      <template x-for="(b,i) in (lastGameResult?.breakdown||[])" :key="i">
+        <div class="flex justify-between py-2 text-sm" style="border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)" x-text="b.label"></span>
+          <span class="font-mono-stat font-semibold" x-text="'+'+b.xp"></span>
+        </div>
+      </template>
+      <template x-for="(a,i) in (lastGameResult?.boostsApplied||[])" :key="'b'+i">
+        <div class="flex justify-between py-2 text-sm">
+          <span style="color:var(--gold-bright)" x-text="a"></span>
+        </div>
+      </template>
+      <div class="flex justify-between pt-3 mt-1 font-display text-lg" style="border-top:2px solid var(--gold)">
+        <span style="color:var(--gold-bright)">Total</span>
+        <span class="font-mono-stat font-bold" style="color:var(--gold-bright)"
+              x-text="'+'+(lastGameResult?.finalXp||0)+' XP'"></span>
+      </div>
+    </div>
+
+    <div x-show="lastGameResult?.levelsGained?.length>0" class="card-parchment p-3 mb-5 text-center">
+      <p style="color:var(--gold-bright)" class="font-semibold">
+        🎉 Niveau <span x-text="lastGameResult?.levelsGained?.join(', ')"></span> atteint !
+      </p>
+    </div>
+
+    <button class="btn btn-primary w-full py-4 text-base"
+            x-show="!currentLevelUp"
+            @click="doneResult()">Retour au dashboard</button>
+    <p class="text-center text-sm" style="color:var(--muted)" x-show="currentLevelUp">
+      Choisis ton bonus…
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- VUE : RÉGLAGES                                            -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div x-show="view==='settings'">
+    <h2 class="font-display text-2xl mb-5">Réglages</h2>
+
+    <div class="card-parchment p-4 mb-4 flex items-center justify-between">
+      <span class="font-medium">Mode sombre</span>
+      <button class="btn btn-secondary" @click="toggleDark()" x-text="darkMode?'Activé ☾':'Désactivé ☀'"></button>
+    </div>
+
+    <div class="card-parchment p-4 mb-4">
+      <p class="font-medium mb-3">Sauvegarde</p>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <button class="btn btn-secondary" @click="exportJSON()">⬇ JSON</button>
+        <button class="btn btn-secondary" @click="exportCSV()">⬇ CSV</button>
+      </div>
+      <label class="btn btn-secondary w-full block text-center cursor-pointer">
+        ⬆ Importer JSON
+        <input type="file" accept="application/json" class="hidden" @change="importFile($event)">
+      </label>
+      <p x-show="importError" class="text-sm mt-2" style="color:var(--danger)" x-text="importError"></p>
+    </div>
+
+    <div class="card-parchment p-4 mb-4">
+      <p class="font-medium mb-2 text-sm" style="color:var(--danger)">Zone de danger</p>
+      <button class="btn btn-danger w-full" @click="resetAll()">🗑 Réinitialiser tout</button>
+    </div>
+
+    <p class="text-center text-xs pb-4" style="color:var(--muted)">Commander RPG v1.1 — Données via Scryfall</p>
+  </div>
+
+</main>
+
+<!-- ============================================================ -->
+<!-- NAVIGATION BASSE                                              -->
+<!-- ============================================================ -->
+<nav x-show="view!=='life-counter'"
+     class="bottom-nav fixed bottom-0 inset-x-0 z-30 flex justify-around pt-2"
+     style="padding-bottom:max(0.5rem,env(safe-area-inset-bottom))">
+  <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-4 py-1 min-w-0"
+          :class="view==='profiles'?'active':''" @click="navTo('profiles')">
+    <span class="text-xl">📜</span><span class="text-xs">Profils</span>
+  </button>
+  <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-4 py-1 min-w-0"
+          :class="view==='dashboard'?'active':''" @click="navTo('dashboard')">
+    <span class="text-xl">🛡️</span><span class="text-xs">Dashboard</span>
+  </button>
+  <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-4 py-1 min-w-0"
+          :class="['life-setup','life-counter','game-summary'].includes(view)?'active':''"
+          @click="navTo('life-setup')">
+    <span class="text-xl">⚔️</span><span class="text-xs">Partie</span>
+  </button>
+  <button class="bottom-nav-item flex flex-col items-center gap-0.5 px-4 py-1 min-w-0"
+          :class="view==='settings'?'active':''" @click="navTo('settings')">
+    <span class="text-xl">⚙️</span><span class="text-xs">Réglages</span>
+  </button>
+</nav>
+
+<!-- ============================================================ -->
+<!-- MODALE LEVEL UP                                               -->
+<!-- ============================================================ -->
+<div x-show="currentLevelUp"
+     class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+     style="background:rgba(0,0,0,0.75)">
+  <div class="w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl p-5 pb-8 sm:pb-5"
+       style="background:var(--bg-elevated);border:1px solid var(--gold)">
+    <div class="flex flex-col items-center mb-5">
+      <div class="medallion medallion-glow mb-3"
+           :class="currentLevelUp?tierClass(currentLevelUp.level):''">
+        <span x-text="currentLevelUp?.level"></span>
+      </div>
+      <p class="font-display text-xl" style="color:var(--gold-bright)">Niveau supérieur !</p>
+      <p class="text-sm text-center mt-1" style="color:var(--muted)">Choisis un bonus pour ton Commander</p>
+    </div>
+    <div class="space-y-3">
+      <template x-for="opt in (currentLevelUp?.options||[])" :key="opt.id">
+        <button class="w-full text-left p-4 rounded-2xl active:opacity-70"
+                style="background:var(--surface);border:1px solid var(--border)"
+                @click="pickBonus(opt)">
+          <div class="flex items-start gap-3">
+            <span class="text-2xl" x-text="opt.icon"></span>
+            <div>
+              <p class="font-semibold"
+                 :style="opt.major?'color:var(--gold-bright)':''"
+                 x-text="opt.name+(opt.major?' ★ Majeur':'')"></p>
+              <p class="text-sm mt-0.5" style="color:var(--muted)" x-text="opt.desc"></p>
+            </div>
+          </div>
+        </button>
+      </template>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TOAST                                                         -->
+<!-- ============================================================ -->
+<div x-show="toast" x-transition
+     class="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full text-sm font-semibold shadow-lg whitespace-nowrap"
+     style="background:var(--gold-bright);color:#1c1622">
+  <span x-text="toast"></span>
+</div>
 
 </body>
 </html>
