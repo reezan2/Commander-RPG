@@ -1,0 +1,300 @@
+/**
+ * style.css — Commander RPG
+ * ----------------------------------------------------------------------
+ * Direction artistique : "grimoire arcanique"
+ * - Fond violet-encre très sombre, comme la couverture d'un grimoire.
+ * - Accents or/laiton (gravure), et pips des 5 couleurs de mana comme
+ *   touches vives réservées aux éléments qui en ont vraiment besoin.
+ * - Cinzel (display, gravé) + Inter (UI/texte courant) + JetBrains Mono
+ *   (chiffres/stats, effet "compteur").
+ * - Signature : le "médaillon de niveau" hexagonal, bordé selon la
+ *   tranche (bronze / argent / or / prismatique), utilisé partout où le
+ *   niveau du joueur est affiché.
+ * ----------------------------------------------------------------------
+ */
+
+:root {
+  --bg: #15111a;
+  --bg-elevated: #1c1622;
+  --surface: #241c2e;
+  --surface-hover: #2c2237;
+  --border: #3a2f47;
+
+  --gold: #c9a227;
+  --gold-bright: #e8c96b;
+  --ink: #f4ecd8;
+  --muted: #a89bb8;
+
+  --mana-w: #f8f4e3;
+  --mana-u: #2f8fd6;
+  --mana-b: #7a5fa8;
+  --mana-r: #d3453a;
+  --mana-g: #359e5c;
+
+  --tier-1: #b08d57; /* bronze — recrue */
+  --tier-2: #c9ced6; /* argent — vétéran */
+  --tier-3: #e8c96b; /* or — champion */
+  --tier-4: linear-gradient(135deg, #d3453a, #e8c96b, #2f8fd6, #359e5c); /* prismatique — légende */
+
+  --success: #4fae6d;
+  --danger: #d3453a;
+}
+
+html.dark body {
+  background-color: var(--bg);
+  color: var(--ink);
+}
+
+html:not(.dark) body {
+  --bg: #f4ecd8;
+  --bg-elevated: #ffffff;
+  --surface: #fffdf7;
+  --surface-hover: #f2e9d3;
+  --border: #ddcfa8;
+  --ink: #241c2e;
+  --muted: #6a5f7a;
+  background-color: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.font-display {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.02em;
+}
+
+.font-mono-stat {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ---------------------------------------------------------------- */
+/* Surfaces & cartes                                                 */
+/* ---------------------------------------------------------------- */
+
+.surface {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.card-parchment {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+
+html:not(.dark) .card-parchment {
+  box-shadow: 0 4px 14px rgba(90, 70, 30, 0.08);
+}
+
+.hairline {
+  border-color: var(--border);
+}
+
+/* ---------------------------------------------------------------- */
+/* Médaillon de niveau — élément signature                           */
+/* ---------------------------------------------------------------- */
+
+.medallion {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+  background: var(--bg-elevated);
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--gold-bright);
+}
+
+.medallion::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%);
+  z-index: -1;
+}
+
+.medallion.tier-1::before { background: var(--tier-1); }
+.medallion.tier-2::before { background: var(--tier-2); }
+.medallion.tier-3::before { background: var(--tier-3); }
+.medallion.tier-4::before { background: var(--tier-4); }
+
+.medallion-sm {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 0.95rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Boutons                                                           */
+/* ---------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.6rem;
+  padding: 0.65rem 1.1rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: transform 0.08s ease, filter 0.15s ease, background-color 0.15s ease;
+  border: 1px solid transparent;
+}
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  color: #1c1622;
+}
+.btn-primary:hover { filter: brightness(1.08); }
+
+.btn-secondary {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--ink);
+}
+.btn-secondary:hover { background: var(--surface-hover); }
+
+.btn-danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-danger:hover { background: rgba(211, 69, 58, 0.1); }
+
+.btn-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  padding: 0;
+  font-size: 1.1rem;
+}
+
+/* ---------------------------------------------------------------- */
+/* Barre de progression XP                                           */
+/* ---------------------------------------------------------------- */
+
+.xp-track {
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.xp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+  transition: width 0.5s ease;
+}
+
+/* ---------------------------------------------------------------- */
+/* Pips de mana                                                      */
+/* ---------------------------------------------------------------- */
+
+.mana-pip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #1c1622;
+  border: 1px solid rgba(0,0,0,0.25);
+}
+.mana-W { background: var(--mana-w); }
+.mana-U { background: var(--mana-u); color: white; }
+.mana-B { background: var(--mana-b); color: white; }
+.mana-R { background: var(--mana-r); color: white; }
+.mana-G { background: var(--mana-g); color: white; }
+
+/* ---------------------------------------------------------------- */
+/* Navigation basse (mobile app style)                                */
+/* ---------------------------------------------------------------- */
+
+.bottom-nav {
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.bottom-nav-item {
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+.bottom-nav-item.active {
+  color: var(--gold-bright);
+}
+
+/* ---------------------------------------------------------------- */
+/* Compteur de vie                                                   */
+/* ---------------------------------------------------------------- */
+
+.life-tile {
+  border-radius: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.life-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  user-select: none;
+  transition: background-color 0.1s ease;
+}
+.life-btn:active { background: rgba(201, 162, 39, 0.18); }
+
+/* ---------------------------------------------------------------- */
+/* Modale de level up                                                */
+/* ---------------------------------------------------------------- */
+
+@keyframes modal-rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.modal-panel {
+  animation: modal-rise 0.25s ease-out;
+}
+
+@keyframes medallion-glow {
+  0%, 100% { filter: drop-shadow(0 0 0px var(--gold-bright)); }
+  50% { filter: drop-shadow(0 0 14px var(--gold-bright)); }
+}
+.medallion-glow {
+  animation: medallion-glow 1.8s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------- */
+/* Accessibilité / divers                                            */
+/* ---------------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+
+[x-cloak] { display: none !important; }
