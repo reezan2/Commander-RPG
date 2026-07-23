@@ -1,61 +1,49 @@
 /**
- * scryfall.js
- * ----------------------------------------------------------------------
- * Recherche de cartes Commander via l'API publique Scryfall.
- * https://scryfall.com/docs/api
- * ----------------------------------------------------------------------
+ * scryfall.js — Recherche Commander via l'API Scryfall
  */
-
 const Scryfall = {
   _cache: new Map(),
 
-  /**
-   * Recherche des cartes légendaires pouvant être Commander, par nom.
-   * Retourne un tableau simplifié [{ id, name, imageUrl, colors, manaCost, cmc, typeLine }]
-   */
   async searchCommanders(query) {
     if (!query || query.trim().length < 2) return [];
+    const key = query.trim().toLowerCase();
+    if (this._cache.has(key)) return this._cache.get(key);
 
-    const cacheKey = query.trim().toLowerCase();
-    if (this._cache.has(cacheKey)) return this._cache.get(cacheKey);
-
-    // is:commander filtre déjà les cartes légales comme Commander
-    const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent('is:commander ' + query)}&order=name`;
+    const q = encodeURIComponent('is:commander name:' + query.trim());
+    const url = `https://api.scryfall.com/cards/search?q=${q}&order=name&unique=cards`;
 
     try {
-      const res = await fetch(url);
-      if (res.status === 404) {
-        // Scryfall renvoie 404 si aucune carte ne correspond
-        this._cache.set(cacheKey, []);
-        return [];
-      }
-      if (!res.ok) throw new Error(`Scryfall a répondu ${res.status}`);
-
+      const res = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.status === 404) { this._cache.set(key, []); return []; }
+      if (!res.ok) throw new Error('Scryfall ' + res.status);
       const data = await res.json();
-      const results = (data.data || []).slice(0, 12).map(this._simplifyCard);
-      this._cache.set(cacheKey, results);
+      const results = (data.data || []).slice(0, 15).map(this._simplify);
+      this._cache.set(key, results);
       return results;
     } catch (err) {
-      console.error('Erreur de recherche Scryfall', err);
+      console.error('Scryfall error', err);
       throw err;
     }
   },
 
-  _simplifyCard(card) {
-    // Les cartes double-face n'ont pas d'image directe : on prend la face avant
+  _simplify(card) {
     const image =
       card.image_uris?.normal ||
       card.card_faces?.[0]?.image_uris?.normal ||
+      card.image_uris?.small ||
       null;
-
     return {
       id: card.id,
       name: card.name,
       imageUrl: image,
       colors: card.color_identity || [],
       manaCost: card.mana_cost || card.card_faces?.[0]?.mana_cost || '',
-      cmc: card.cmc,
-      typeLine: card.type_line,
+      cmc: card.cmc || 0,
+      typeLine: card.type_line || '',
     };
   },
 };
