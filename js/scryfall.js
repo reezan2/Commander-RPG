@@ -1,5 +1,7 @@
 /**
  * scryfall.js — Recherche Commander via l'API Scryfall
+ * Query : (is:commander OR is:background) + terme libre
+ * Fallback : recherche sans filtre commander si 0 résultats
  */
 const Scryfall = {
   _cache: new Map(),
@@ -9,30 +11,37 @@ const Scryfall = {
     const key = query.trim().toLowerCase();
     if (this._cache.has(key)) return this._cache.get(key);
 
-    const q = encodeURIComponent('is:commander name:' + query.trim());
-    const url = `https://api.scryfall.com/cards/search?q=${q}&order=name&unique=cards`;
+    // Essai 1 : filtre commander strict
+    let results = await this._fetch('is:commander ' + query.trim());
 
+    // Fallback : si aucun résultat, on cherche parmi les légendaires
+    if (results.length === 0) {
+      results = await this._fetch('is:legendary type:creature ' + query.trim());
+    }
+
+    this._cache.set(key, results);
+    return results;
+  },
+
+  async _fetch(queryStr) {
+    const url = 'https://api.scryfall.com/cards/search?q='
+      + encodeURIComponent(queryStr)
+      + '&order=name&unique=cards';
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        headers: { 'Accept': 'application/json' }
-      });
-      if (res.status === 404) { this._cache.set(key, []); return []; }
-      if (!res.ok) throw new Error('Scryfall ' + res.status);
+      const res = await fetch(url);
+      if (!res.ok) return [];
       const data = await res.json();
-      const results = (data.data || []).slice(0, 15).map(this._simplify);
-      this._cache.set(key, results);
-      return results;
-    } catch (err) {
-      console.error('Scryfall error', err);
-      throw err;
+      return (data.data || []).slice(0, 15).map(this._simplify);
+    } catch (e) {
+      console.warn('Scryfall fetch error', e);
+      return [];
     }
   },
 
   _simplify(card) {
     const image =
       card.image_uris?.normal ||
+      card.image_uris?.large ||
       card.card_faces?.[0]?.image_uris?.normal ||
       card.image_uris?.small ||
       null;
